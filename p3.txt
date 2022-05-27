@@ -1,0 +1,5 @@
+ec2-34-236-243-159.compute-1.amazonaws.com
+
+
+
+sudo scp  -i CC3069-2022-seccion10.pem ../source/hello*.cu USER@INSTANCIA:destino/ por si te sirve
