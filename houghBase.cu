@@ -74,7 +74,7 @@ __global__ void GPU_HoughTran (unsigned char *pic, int w, int h, int *acc, float
 {
   //TODO calcular: int gloID = ?
 
-  int gloID = blockIdx.x * blockDim.x + threadIdx.X;
+  int gloID = blockIdx.x * blockDim.x + threadIdx.x;
 
   // int gloID = w * h + 1; //TODO
 
