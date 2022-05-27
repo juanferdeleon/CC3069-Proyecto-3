@@ -176,10 +176,15 @@ int main (int argc, char **argv)
   printf("Done!\n");
 
   // TODO clean-up
+  
   cudaFree(d_Cos);
   cudaFree(d_Sin);
   cudaFree(d_in);
   cudaFree(d_hough);
+
+  free(pcCos);
+  free(pcSin);
+  free(h_hough);
 
   return 0;
 }
