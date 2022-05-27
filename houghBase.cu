@@ -193,17 +193,21 @@ int main (int argc, char **argv)
       printf ("Calculation mismatch at : %i %i %i\n", i, cpuht[i], h_hough[i]);
   }
   printf("Done!\n");
+  printf("Timpe elapsed: %f\n", milliseconds);|
 
   // TODO clean-up
   
   // ? JUANFER
-  cudaFree(d_Cos);
-  cudaFree(d_Sin);
-  cudaFree(d_in);
-  cudaFree(d_hough);
-  free(pcCos);
-  free(pcSin);
-  free(h_hough);
+  cudaFree ((void *) d_Cos);
+  cudaFree ((void *) d_Sin);
+  free (pcCos);
+  free (pcSin);
+  free (h_hough);
+  cudaFree ((void *) d_in);
+  cudaFree ((void *) d_hough);
+  delete[]h_in;
+
+  cudaDeviceReset ();
   // ? JUANFER
 
   return 0;
