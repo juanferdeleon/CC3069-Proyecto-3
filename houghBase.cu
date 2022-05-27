@@ -193,7 +193,7 @@ int main (int argc, char **argv)
       printf ("Calculation mismatch at : %i %i %i\n", i, cpuht[i], h_hough[i]);
   }
   printf("Done!\n");
-  printf("Timpe elapsed: %f\n", milliseconds);
+  printf("Time elapsed: %f\n", milliseconds);
 
   // TODO clean-up
   
