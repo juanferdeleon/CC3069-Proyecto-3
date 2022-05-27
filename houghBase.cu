@@ -74,7 +74,9 @@ __global__ void GPU_HoughTran (unsigned char *pic, int w, int h, int *acc, float
 {
   //TODO calcular: int gloID = ?
 
+  // ? JUANFER
   int gloID = blockIdx.x * blockDim.x + threadIdx.x;
+  // ? JUANFER
 
   // int gloID = w * h + 1; //TODO
 
@@ -159,6 +161,7 @@ int main (int argc, char **argv)
   cudaMemcpy (d_in, h_in, sizeof (unsigned char) * w * h, cudaMemcpyHostToDevice);
   cudaMemset (d_hough, 0, sizeof (int) * degreeBins * rBins);
 
+  // ? JUANFER
   // ! Timing execution
   cudaEvent_t start, stop;
 
@@ -178,6 +181,7 @@ int main (int argc, char **argv)
   cudaEventSynchronize(stop);
   float milliseconds = 0;
   cudaEventElapsedTime(&milliseconds, start, stop);
+  // ? JUANFER
 
   // get results from device
   cudaMemcpy (h_hough, d_hough, sizeof (int) * degreeBins * rBins, cudaMemcpyDeviceToHost);
@@ -192,14 +196,15 @@ int main (int argc, char **argv)
 
   // TODO clean-up
   
+  // ? JUANFER
   cudaFree(d_Cos);
   cudaFree(d_Sin);
   cudaFree(d_in);
   cudaFree(d_hough);
-
   free(pcCos);
   free(pcSin);
   free(h_hough);
+  // ? JUANFER
 
   return 0;
 }
