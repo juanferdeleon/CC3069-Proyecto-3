@@ -150,8 +150,8 @@ int main (int argc, char **argv)
   // ? Cristo 
   // cudaMemcpy(d_Cos, pcCos, sizeof (float) * degreeBins, cudaMemcpyHostToDevice);
   // cudaMemcpy(d_Sin, pcSin, sizeof (float) * degreeBins, cudaMemcpyHostToDevice);
-  cudaMemcpy(d_Cos, pcCos, sizeof (float) * degreeBins);
-  cudaMemcpy(d_Sin, pcSin, sizeof (float) * degreeBins);
+  cudaMemcpyToSymbol(d_Cos, pcCos, sizeof (float) * degreeBins);
+  cudaMemcpyToSymbol(d_Sin, pcSin, sizeof (float) * degreeBins);
 
   // setup and copy data from host to device
   unsigned char *d_in, *h_in;
