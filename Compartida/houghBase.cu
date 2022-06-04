@@ -143,7 +143,7 @@ __global__ void GPU_HoughTran (unsigned char *pic, int w, int h, int *acc, float
   local localAcc al acumulador global acc.
   */
 
-  for(i = locID; i < degreeBins ∗ rBins; i += blockDim.x) atomicAdd(acc + i , localAcc[i]); 
+  for(i = locID; i < degreeBins * rBins; i += blockDim.x) atomicAdd(acc + i , localAcc[i]); 
   
 }
 
