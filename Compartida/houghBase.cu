@@ -94,7 +94,7 @@ __global__ void GPU_HoughTran (unsigned char *pic, int w, int h, int *acc, float
   __shared__ int localAcc[degreeBins * rBins];
 
   // Inicialize a 0 todos los elementos de este acumulador local. Recuerde que la memoria Compartida solamente puede manejarse desde el device (kernel).
-  for( i = locID; i < degreeBins * rBins; i += blockDim . x) localAcc[ i ] = 0;
+  for( kk = locID; kk < degreeBins * rBins; kk += blockDim.x) localAcc[ kk ] = 0;
 
   // Incluya una barrera para los hilos del bloque que controle que todos los hilos hayan completado el proceso de inicialización del acumulador local.
   __syncthreads();
