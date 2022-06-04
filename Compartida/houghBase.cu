@@ -1,0 +1,259 @@
+/*
+ ============================================================================
+ Author        : G. Barlas
+ Version       : 1.0
+ Last modified : December 2014
+ License       : Released under the GNU GPL 3.0
+ Description   :
+ To build use  : make
+ ============================================================================
+ */
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <cuda.h>
+#include <string.h>
+#include "common/pgm.h"
+
+const int degreeInc = 2;
+const int degreeBins = 180 / degreeInc;
+const int rBins = 100;
+const float radInc = degreeInc * M_PI / 180;
+//*****************************************************************
+// The CPU function returns a pointer to the accummulator
+void CPU_HoughTran (unsigned char *pic, int w, int h, int **acc)
+{
+  float rMax = sqrt (1.0 * w * w + 1.0 * h * h) / 2;  //(w^2 + h^2)/2, radio max equivalente a centro -> esquina
+  *acc = new int[rBins * degreeBins];            //el acumulador, conteo depixeles encontrados, 90*180/degInc = 9000
+  memset (*acc, 0, sizeof (int) * rBins * degreeBins); //init en ceros
+  int xCent = w / 2;
+  int yCent = h / 2;
+  float rScale = 2 * rMax / rBins;
+
+  for (int i = 0; i < w; i++) //por cada pixel
+    for (int j = 0; j < h; j++) //...
+      {
+        int idx = j * w + i;
+        if (pic[idx] > 0) //si pasa thresh, entonces lo marca
+          {
+            int xCoord = i - xCent;
+            int yCoord = yCent - j;  // y-coord has to be reversed
+            float theta = 0;         // actual angle
+            for (int tIdx = 0; tIdx < degreeBins; tIdx++) //add 1 to all lines in that pixel
+              {
+                float r = xCoord * cos (theta) + yCoord * sin (theta);
+                int rIdx = (r + rMax) / rScale;
+                (*acc)[rIdx * degreeBins + tIdx]++; //+1 para este radio r y este theta
+                theta += radInc;
+              }
+          }
+      }
+}
+
+//*****************************************************************
+// TODO usar memoria constante para la tabla de senos y cosenos
+// inicializarlo en main y pasarlo al device
+// ? Cristo
+__constant__ float d_Cos[degreeBins];
+__constant__ float d_Sin[degreeBins];
+
+//*****************************************************************
+//TODO Kernel memoria compartida
+// __global__ void GPU_HoughTranShared(...)
+// {
+//   //TODO
+// }
+//TODO Kernel memoria Constante
+// __global__ void GPU_HoughTranConst(...)
+// {
+//   //TODO
+// }
+
+// GPU kernel. One thread per image pixel is spawned.
+// The accummulator memory needs to be allocated by the host in global memory
+__global__ void GPU_HoughTran (unsigned char *pic, int w, int h, int *acc, float rMax, float rScale, float *d_Cos, float *d_Sin)
+{
+  //TODO calcular: int gloID = ?
+
+  // ? JUANFER
+  int gloID = blockIdx.x * blockDim.x + threadIdx.x;
+  // ? JUANFER
+
+  // int gloID = w * h + 1; //TODO
+
+  if (gloID > w * h) return;      // in case of extra threads in block
+
+  // ? Juanfer
+  // 7.a Defina en el kernel un locID usando los IDs de los hilos del bloque
+  int locID = threadIdx.x;
+
+  int xCent = w / 2;
+  int yCent = h / 2;
+
+  // Defina en el kernel un acumulador local en memoria compartida llamado localAcc, que tenga degreeBins * rBins elementos
+  __shared__ int localAcc[degreeBins ∗ rBins];
+
+  // Inicialize a 0 todos los elementos de este acumulador local. Recuerde que la memoria Compartida solamente puede manejarse desde el device (kernel).
+  for( i = locID; i < degreeBins ∗ rBins; i += blockDim . x) localAcc[ i ] = 0;
+
+  // Incluya una barrera para los hilos del bloque que controle que todos los hilos hayan completado el proceso de inicialización del acumulador local.
+  __syncthreads();
+  
+  //TODO explicar bien bien esta parte. Dibujar un rectangulo a modo de imagen sirve para visualizarlo mejor
+  int xCoord = gloID % w - xCent;
+  int yCoord = yCent - gloID / w;
+
+  //TODO eventualmente usar memoria compartida para el acumulador
+
+  /*
+  Modifique la actualización del acumulador global acc para usar el
+  acumulador local localAcc. Para coordinar el acceso a memoria y
+  garantizar que la operación de suma sea completada por cada hilo,
+  use una operación de suma atómica.
+  */
+   if(pic[ gloID] > 0)
+    {
+      for(int tIdx = 0; tIdx < degreeBins ; tIdx++)
+        {
+          //TODO utilizar memoria constante para senos y cosenos
+          //float r = xCoord * cos(tIdx) + yCoord * sin(tIdx); //probar con esto para ver diferencia en tiempo
+          float r = xCoord * d_Cos[tIdx] + yCoord * d_Sin[tIdx];
+          int rIdx = (r + rMax) / rScale;
+          //debemos usar atomic, pero que race condition hay si somos un thread por pixel? explique
+          // atomicAdd (acc + (rIdx * degreeBins + tIdx), 1);
+          atomicAdd(localAcc + (rIdx ∗ degreeBins + tIdx), 1); 
+        }
+    }
+
+  //TODO eventualmente cuando se tenga memoria compartida, copiar del local al global
+  //utilizar operaciones atomicas para seguridad
+  //faltara sincronizar los hilos del bloque en algunos lados
+
+  /*
+  Incluya una segunda barrera para los hilos del bloque que controle
+  que todos los hilos hayan completado el proceso de incremento del
+  acumulador local
+  */
+
+  __syncthreads();
+
+  /*
+  Agregue un loop al final del kernel que inicie en locID hasta
+  degreeBins * rBins . Este loop sumará los valores del acumulador
+  local localAcc al acumulador global acc.
+  */
+
+  for(i = locID; i < degreeBins ∗ rBins; i += blockDim.x) atomicAdd(acc + i , localAcc[i]); 
+  
+}
+
+//*****************************************************************
+int main (int argc, char **argv)
+{
+  int i;
+
+  PGMImage inImg (argv[1]);
+
+  int *cpuht;
+  int w = inImg.x_dim;
+  int h = inImg.y_dim;
+  // ? Cristo
+  //float* d_Cos;
+  //float* d_Sin;
+
+  cudaMalloc ((void **) &d_Cos, sizeof (float) * degreeBins);
+  cudaMalloc ((void **) &d_Sin, sizeof (float) * degreeBins);
+
+  // CPU calculation
+  CPU_HoughTran(inImg.pixels, w, h, &cpuht);
+
+  // pre-compute values to be stored
+  float *pcCos = (float *) malloc (sizeof (float) * degreeBins);
+  float *pcSin = (float *) malloc (sizeof (float) * degreeBins);
+  float rad = 0;
+  for (i = 0; i < degreeBins; i++)
+  {
+    pcCos[i] = cos (rad);
+    pcSin[i] = sin (rad);
+    rad += radInc;
+  }
+
+  float rMax = sqrt (1.0 * w * w + 1.0 * h * h) / 2;
+  float rScale = 2 * rMax / rBins;
+
+  // TODO eventualmente volver memoria global
+
+  // ? Cristo 
+  // cudaMemcpy(d_Cos, pcCos, sizeof (float) * degreeBins, cudaMemcpyHostToDevice);
+  // cudaMemcpy(d_Sin, pcSin, sizeof (float) * degreeBins, cudaMemcpyHostToDevice);
+  cudaMemcpyToSymbol(d_Cos, pcCos, sizeof (float) * degreeBins);
+  cudaMemcpyToSymbol(d_Sin, pcSin, sizeof (float) * degreeBins);
+
+  // setup and copy data from host to device
+  unsigned char *d_in, *h_in;
+  int *d_hough, *h_hough;
+
+  h_in = inImg.pixels; // h_in contiene los pixeles de la imagen
+
+  h_hough = (int *) malloc (degreeBins * rBins * sizeof (int));
+
+  cudaMalloc ((void **) &d_in, sizeof (unsigned char) * w * h);
+  cudaMalloc ((void **) &d_hough, sizeof (int) * degreeBins * rBins);
+  cudaMemcpy (d_in, h_in, sizeof (unsigned char) * w * h, cudaMemcpyHostToDevice);
+  cudaMemset (d_hough, 0, sizeof (int) * degreeBins * rBins);
+
+  // ? JUANFER
+  // ! Timing execution
+  cudaEvent_t start, stop;
+
+  // Var for timming
+  cudaEventCreate(&start);
+  cudaEventCreate(&stop);
+  
+  // execution configuration uses a 1-D grid of 1-D blocks, each made of 256 threads
+  //1 thread por pixel
+  int blockNum = ceil (w * h / 256);
+
+  cudaEventRecord(start); // Start timming
+  GPU_HoughTran <<< blockNum, 256 >>> (d_in, w, h, d_hough, rMax, rScale, d_Cos, d_Sin);
+  cudaEventRecord(stop); // Stop timming
+
+  // Calculate how much time it took
+  cudaEventSynchronize(stop);
+  float milliseconds = 0;
+  cudaEventElapsedTime(&milliseconds, start, stop);
+  // ? JUANFER
+
+  // get results from device
+  cudaMemcpy (h_hough, d_hough, sizeof (int) * degreeBins * rBins, cudaMemcpyDeviceToHost);
+
+  // compare CPU and GPU results
+  for (i = 0; i < degreeBins * rBins; i++)
+  {
+    if (cpuht[i] != h_hough[i])
+      printf ("Calculation mismatch at : %i %i %i\n", i, cpuht[i], h_hough[i]);
+  }
+  printf("Done!\n");
+  printf("Time elapsed: %f\n", milliseconds);
+
+  // TODO clean-up
+  
+  // ? JUANFER
+
+  // ? Cristo
+  // cudaFree ((void *) d_Cos);
+  // cudaFree ((void *) d_Sin);
+  // free (pcCos);
+  // free (pcSin);
+  // free (h_hough);
+  // cudaFree ((void *) d_in);
+  // cudaFree ((void *) d_hough);
+  // delete[]h_in;
+
+  // cudaDeviceReset ();
+
+  
+  // ? JUANFER
+
+  return 0;
+}
