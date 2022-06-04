@@ -91,10 +91,10 @@ __global__ void GPU_HoughTran (unsigned char *pic, int w, int h, int *acc, float
   int yCent = h / 2;
 
   // Defina en el kernel un acumulador local en memoria compartida llamado localAcc, que tenga degreeBins * rBins elementos
-  __shared__ int localAcc[degreeBins ∗ rBins];
+  __shared__ int localAcc[degreeBins * rBins];
 
   // Inicialize a 0 todos los elementos de este acumulador local. Recuerde que la memoria Compartida solamente puede manejarse desde el device (kernel).
-  for( i = locID; i < degreeBins ∗ rBins; i += blockDim . x) localAcc[ i ] = 0;
+  for( i = locID; i < degreeBins * rBins; i += blockDim . x) localAcc[ i ] = 0;
 
   // Incluya una barrera para los hilos del bloque que controle que todos los hilos hayan completado el proceso de inicialización del acumulador local.
   __syncthreads();
@@ -121,7 +121,7 @@ __global__ void GPU_HoughTran (unsigned char *pic, int w, int h, int *acc, float
           int rIdx = (r + rMax) / rScale;
           //debemos usar atomic, pero que race condition hay si somos un thread por pixel? explique
           // atomicAdd (acc + (rIdx * degreeBins + tIdx), 1);
-          atomicAdd(localAcc + (rIdx ∗ degreeBins + tIdx), 1); 
+          atomicAdd(localAcc + (rIdx * degreeBins + tIdx), 1); 
         }
     }
 
